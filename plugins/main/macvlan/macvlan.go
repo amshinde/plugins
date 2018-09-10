@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+        "math/rand"
+	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
@@ -104,20 +106,42 @@ func createMacvlan(conf *NetConf, ifName string, netns ns.NetNS, configureNetwor
 
 	var mv netlink.Link
 
-	if configureNetworkForVM {
-		mv = &netlink.Macvtap{
-			Macvlan: netlink.Macvlan{
-				LinkAttrs: netlink.LinkAttrs{
-					MTU:         conf.MTU,
-					Name:        tmpName,
-					ParentIndex: m.Attrs().Index,
-					Namespace:   netlink.NsFd(int(netns.Fd())),
+	if ! configureNetworkForVM {
+		const hostLinkOffset = 8192
+		const linkRetries = 128
+		const linkRange = 0xFFFF
+
+		index := -1
+
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+			for i := 0; i < linkRetries; i++ {
+				index = hostLinkOffset + (r.Int() & linkRange)
+				//taplink, _, err = createLink(netHandle, name, link)
+				  mv = &netlink.Macvtap{
+				Macvlan: netlink.Macvlan{
+					LinkAttrs: netlink.LinkAttrs{
+						Index:       index,
+						MTU:         conf.MTU,
+						Name:        tmpName,
+						ParentIndex: m.Attrs().Index,
+						Namespace:   netlink.NsFd(int(netns.Fd())),
+					},
+					Mode: mode,
 				},
-				Mode: mode,
-			},
+			}
+
+			if err := netlink.LinkAdd(mv); err != nil {
+				return nil, fmt.Errorf("failed to create macvtap: %v", err)
+			}
+
+			if err == nil {
+				break
+			}
+			break
 		}
 
-		if err := netlink.LinkAdd(mv); err != nil {
+		if err != nil {
 			return nil, fmt.Errorf("failed to create macvtap: %v", err)
 		}
 	} else {
