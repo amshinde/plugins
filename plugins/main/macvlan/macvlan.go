@@ -104,7 +104,7 @@ func createMacvlan(conf *NetConf, ifName string, netns ns.NetNS, configureNetwor
 
 	var mv netlink.Link
 
-	if configureNetworkForVM {
+	if !configureNetworkForVM {
 		mv = &netlink.Macvtap{
 			Macvlan: netlink.Macvlan{
 				LinkAttrs: netlink.LinkAttrs{
@@ -113,7 +113,8 @@ func createMacvlan(conf *NetConf, ifName string, netns ns.NetNS, configureNetwor
 					ParentIndex: m.Attrs().Index,
 					Namespace:   netlink.NsFd(int(netns.Fd())),
 				},
-				Mode: mode,
+				//Mode: mode,
+				Mode: netlink.MACVLAN_MODE_BRIDGE,
 			},
 		}
 
